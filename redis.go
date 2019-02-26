@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/go-redis/redis"
+	jsoniter "github.com/json-iterator/go"
 )
 
 var (
@@ -92,6 +93,11 @@ func (db *RedisDB) Name() string {
 // DBType - DataBase Type
 func (db *RedisDB) DBType() *KVDBType {
 	return db.Type
+}
+
+// Exists - if key existed
+func (db *RedisDB) Exists(key string) bool {
+	return db.Client.HExists(db.HashKey, key).Val()
 }
 
 // Get - get value from key
@@ -241,4 +247,17 @@ func (db *RedisDB) List(page uint, handler func(k, v []byte) *KVInfo) *KVInfo {
 		}
 	}
 	return kv
+}
+
+// SetData - set data in object json format
+func (db *RedisDB) SetData(key string, data interface{}) *KVInfo {
+	var json = jsoniter.ConfigCompatibleWithStandardLibrary
+	value, err := json.Marshal(data)
+	if err != nil {
+		return &KVInfo{
+			Result: false,
+			Info:   err.Error(),
+		}
+	}
+	return db.Set(&KVData{key, value})
 }

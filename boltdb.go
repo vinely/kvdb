@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/boltdb/bolt"
+	jsoniter "github.com/json-iterator/go"
 )
 
 // BoltDB - BoltDB struct
@@ -93,6 +94,23 @@ func (db *BoltDB) DBType() *KVDBType {
 	return db.Type
 }
 
+// Exists - if key existed
+func (db *BoltDB) Exists(key string) bool {
+	if err := db.DB.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(db.Bucket))
+		if b == nil {
+			return fmt.Errorf("could not open bucket, %s", db.Bucket)
+		}
+		if v := b.Get([]byte(key)); v != nil {
+			return nil
+		}
+		return errors.New("Not Existed")
+	}); err != nil {
+		return false
+	}
+	return true
+}
+
 // Get - get value from key
 func (db *BoltDB) Get(key string) *KVInfo {
 	var data []byte
@@ -121,6 +139,39 @@ func (db *BoltDB) Get(key string) *KVInfo {
 		},
 		Result: true,
 		Info:   "",
+	}
+}
+
+// FindOne - find first matched content that hander returned
+func (db *BoltDB) FindOne(handler func(k, v []byte) *KVInfo) *KVInfo {
+	kv := &KVData{}
+	err := db.DB.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(db.Bucket))
+		if b == nil {
+			return fmt.Errorf("could not open bucket, %s", db.Bucket)
+		}
+		c := b.Cursor()
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			if i := handler(k, v); i.Result {
+				kv.Key = string(k)
+				kv.Value = v
+				return nil
+			}
+		}
+		return errors.New("didn't found kvs")
+	})
+	if err == nil {
+		return &KVInfo{
+			Data: []KVData{
+				*kv,
+			},
+			Result: true,
+			Info:   "",
+		}
+	}
+	return &KVInfo{
+		Result: false,
+		Info:   err.Error(),
 	}
 }
 
@@ -173,21 +224,19 @@ func (db *BoltDB) Delete(key string) *KVInfo {
 	return kvi
 }
 
-// Exists - if key existed
-func (db *BoltDB) Exists(key string) bool {
+// KeyCount - Key Number
+// count of keys
+func (db *BoltDB) KeyCount() int {
+	var number = 0
 	if err := db.DB.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(db.Bucket))
-		if b == nil {
-			return fmt.Errorf("could not open bucket, %s", db.Bucket)
-		}
-		if v := b.Get([]byte(key)); v != nil {
-			return nil
-		}
-		return errors.New("Not Existed")
-	}); err != nil {
-		return false
+		stats := b.Stats()
+		number = stats.KeyN
+		return nil
+	}); err == nil {
+		return number
 	}
-	return true
+	return 0
 }
 
 // ListKeys - list keys
@@ -250,50 +299,15 @@ func (db *BoltDB) List(page uint, handler func(k, v []byte) *KVInfo) *KVInfo {
 	}
 }
 
-// FindOne - find first matched content that hander returned
-func (db *BoltDB) FindOne(handler func(k, v []byte) *KVInfo) *KVInfo {
-	kv := &KVData{}
-	err := db.DB.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(db.Bucket))
-		if b == nil {
-			return fmt.Errorf("could not open bucket, %s", db.Bucket)
-		}
-		c := b.Cursor()
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			if i := handler(k, v); i.Result {
-				kv.Key = string(k)
-				kv.Value = v
-				return nil
-			}
-		}
-		return errors.New("didn't found kvs")
-	})
-	if err == nil {
+// SetData - set data in object json format
+func (db *BoltDB) SetData(key string, data interface{}) *KVInfo {
+	var json = jsoniter.ConfigCompatibleWithStandardLibrary
+	value, err := json.Marshal(data)
+	if err != nil {
 		return &KVInfo{
-			Data: []KVData{
-				*kv,
-			},
-			Result: true,
-			Info:   "",
+			Result: false,
+			Info:   err.Error(),
 		}
 	}
-	return &KVInfo{
-		Result: false,
-		Info:   err.Error(),
-	}
-}
-
-// KeyCount - Key Number
-// count of keys
-func (db *BoltDB) KeyCount() int {
-	var number = 0
-	if err := db.DB.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(db.Bucket))
-		stats := b.Stats()
-		number = stats.KeyN
-		return nil
-	}); err == nil {
-		return number
-	}
-	return 0
+	return db.Set(&KVData{key, value})
 }

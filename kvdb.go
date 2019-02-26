@@ -34,6 +34,7 @@ func (kv *KVInfo) Error() string {
 type KVMethods interface {
 	KVBase
 	KVList
+	KVUtil
 }
 
 // KVBase - base interface for KV DB
@@ -46,6 +47,11 @@ type KVBase interface {
 	Set(kv *KVData) *KVInfo
 	Delete(key string) *KVInfo
 	KeyCount() int
+}
+
+// KVUtil - extended interface in use
+type KVUtil interface {
+	SetData(key string, data interface{}) *KVInfo
 }
 
 // KVList - interface of list operations
