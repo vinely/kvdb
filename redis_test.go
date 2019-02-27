@@ -36,9 +36,10 @@ func TestRedisDB_Set(t *testing.T) {
 	}
 
 	for i := 0; i < 50; i++ {
-		err = testredisdb.Set(&KVData{"key" + strconv.Itoa(i), []byte("value" + strconv.Itoa(i))})
-		if err != nil {
-			fmt.Println(err)
+		ret := testredisdb.Set(&KVData{"key" + strconv.Itoa(i), []byte("value" + strconv.Itoa(i))})
+		if ret.Result {
+			d := ret.Data.(*KVData)
+			fmt.Println(string(d.Value))
 		}
 	}
 }
@@ -50,12 +51,12 @@ func TestRedisDB_Get(t *testing.T) {
 	}
 
 	for i := 0; i < 50; i++ {
-		kvi := testredisdb.Get("key" + strconv.Itoa(i))
+		kvr := testredisdb.Get("key" + strconv.Itoa(i))
 		if err != nil {
 			fmt.Println(err)
 		}
-		if kvi.Result && kvi.Len() >= 1 {
-			fmt.Println(string(kvi.Data[0].Value))
+		if kvr.Result {
+			fmt.Println(string(kvr.Data.([]byte)))
 		}
 	}
 }
@@ -82,21 +83,20 @@ func TestRedisDB_FindOne(t *testing.T) {
 	if err != nil {
 		fmt.Println(err)
 	}
-	v := testredisdb.FindOne(func(k, v []byte) *KVInfo {
+	v := testredisdb.FindOne(func(k, v []byte) *KVResult {
 		if strings.Compare(string(k), "key11") == 0 {
-			return &KVInfo{
-				Data: []KVData{
-					{string(k), v},
-				},
+			return &KVResult{
+				Data:   v,
 				Result: true,
 				Info:   "",
 			}
 		}
-		return &KVInfo{
+		return &KVResult{
 			Result: false,
 		}
 	})
-	fmt.Println(string(v.Data[0].Value))
+	d := v.Data.([]byte)
+	fmt.Println(string(d))
 }
 
 func TestRedisDB_List(t *testing.T) {
@@ -104,19 +104,22 @@ func TestRedisDB_List(t *testing.T) {
 	if err != nil {
 		fmt.Println(err)
 	}
-	v := testredisdb.List(0, func(k, v []byte) *KVInfo {
+	v := testredisdb.List(0, func(k, v []byte) *KVResult {
 		if strings.Contains(string(k), "key1") {
-			return &KVInfo{
-				Data: []KVData{
-					{string(k), v},
-				},
+			return &KVResult{
+				Data:   v,
 				Result: true,
 				Info:   "",
 			}
 		}
-		return &KVInfo{
+		return &KVResult{
 			Result: false,
 		}
 	})
-	fmt.Printf("%v\n", v.Data)
+	var str []string
+	d := v.Data.([]interface{})
+	for _, b := range d {
+		str = append(str, string(b.([]byte)))
+	}
+	fmt.Println(str)
 }

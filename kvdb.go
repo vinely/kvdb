@@ -11,23 +11,29 @@ type KVData struct {
 	Value []byte
 }
 
-// KVInfo - KVData Result
-type KVInfo struct {
-	Data   []KVData
+// KVResult - KVData Result
+type KVResult struct {
+	Data   interface{} `json:",omitempty"`
 	Result bool
 	Info   string
 }
 
-// Len - get length of kv array
-func (kv *KVInfo) Len() int {
-	return len(kv.Data)
-}
-
-func (kv *KVInfo) Error() string {
+func (kv *KVResult) Error() string {
 	if kv.Result {
 		return ""
 	}
 	return kv.Info
+}
+
+// KVInfo - KVData Result
+type KVInfo struct {
+	KVResult
+	KVData []KVData `json:",omitempty"`
+}
+
+// Len - get length of kv array
+func (kv *KVInfo) Len() int {
+	return len(kv.KVData)
 }
 
 // KVMethods - interface for KV DB
@@ -42,16 +48,16 @@ type KVBase interface {
 	Name() string
 	DBType() *KVDBType
 	Exists(key string) bool
-	Get(key string) *KVInfo
-	FindOne(handler func(k, v []byte) *KVInfo) *KVInfo
-	Set(kv *KVData) *KVInfo
-	Delete(key string) *KVInfo
+	Get(key string) *KVResult
+	FindOne(handler func(k, v []byte) *KVResult) *KVResult
+	Set(kv *KVData) *KVResult
+	Delete(key string) *KVResult
 	KeyCount() int
 }
 
 // KVUtil - extended interface in use
 type KVUtil interface {
-	SetData(key string, data interface{}) *KVInfo
+	SetData(key string, data interface{}) *KVResult
 }
 
 // KVList - interface of list operations
@@ -60,7 +66,7 @@ type KVList interface {
 	// List keys on page no
 	ListKeys(page uint) []string
 	// List Values that match hander selection on page no
-	List(page uint, handler func(k, v []byte) *KVInfo) *KVInfo
+	List(page uint, handler func(k, v []byte) *KVResult) *KVResult
 }
 
 // KVDBType -kv database types

@@ -112,7 +112,7 @@ func (db *BoltDB) Exists(key string) bool {
 }
 
 // Get - get value from key
-func (db *BoltDB) Get(key string) *KVInfo {
+func (db *BoltDB) Get(key string) *KVResult {
 	var data []byte
 	if err := db.DB.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(db.Bucket))
@@ -125,26 +125,21 @@ func (db *BoltDB) Get(key string) *KVInfo {
 		}
 		return nil
 	}); err != nil {
-		return &KVInfo{
+		return &KVResult{
 			Result: false,
 			Info:   err.Error(),
 		}
 	}
-	return &KVInfo{
-		Data: []KVData{
-			{
-				Key:   key,
-				Value: data,
-			},
-		},
+	return &KVResult{
+		Data:   data,
 		Result: true,
 		Info:   "",
 	}
 }
 
 // FindOne - find first matched content that hander returned
-func (db *BoltDB) FindOne(handler func(k, v []byte) *KVInfo) *KVInfo {
-	kv := &KVData{}
+func (db *BoltDB) FindOne(handler func(k, v []byte) *KVResult) *KVResult {
+	kv := &KVResult{}
 	err := db.DB.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(db.Bucket))
 		if b == nil {
@@ -153,75 +148,60 @@ func (db *BoltDB) FindOne(handler func(k, v []byte) *KVInfo) *KVInfo {
 		c := b.Cursor()
 		for k, v := c.First(); k != nil; k, v = c.Next() {
 			if i := handler(k, v); i.Result {
-				kv.Key = string(k)
-				kv.Value = v
+				kv = i
 				return nil
 			}
 		}
 		return errors.New("didn't found kvs")
 	})
 	if err == nil {
-		return &KVInfo{
-			Data: []KVData{
-				*kv,
-			},
-			Result: true,
-			Info:   "",
-		}
+		return kv
 	}
-	return &KVInfo{
+	return &KVResult{
 		Result: false,
 		Info:   err.Error(),
 	}
 }
 
 // Set - set key value
-func (db *BoltDB) Set(kv *KVData) *KVInfo {
-	// var json = jsoniter.ConfigCompatibleWithStandardLibrary
-	// value, err := json.Marshal(data)
-	// if err != nil {
-	// 	return err
-	// }
+func (db *BoltDB) Set(kv *KVData) *KVResult {
 	err := db.DB.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(db.Bucket))
 		err := b.Put([]byte(kv.Key), kv.Value)
 		return err
 	})
 	if err != nil {
-		return &KVInfo{
+		return &KVResult{
 			Result: false,
 			Info:   err.Error(),
 		}
 	}
-	return &KVInfo{
-		Data: []KVData{
-			*kv,
-		},
+	return &KVResult{
+		Data:   kv,
 		Result: true,
 		Info:   "",
 	}
 }
 
 // Delete - delete key
-func (db *BoltDB) Delete(key string) *KVInfo {
-	kvi := &KVInfo{
-		Data: []KVData{
-			{Key: key},
-		},
+func (db *BoltDB) Delete(key string) *KVResult {
+	kv := &KVData{Key: key}
+	kvr := &KVResult{
+		Data: kv,
 	}
 	err := db.DB.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(db.Bucket))
-		kvi.Data[0].Value = b.Get([]byte(key))
+		kv.Value = b.Get([]byte(key))
 		err := b.Delete([]byte(key))
 		return err
 	})
 	if err != nil {
-		kvi.Info = err.Error()
-		kvi.Result = false
-		return kvi
+		kvr.Info = err.Error()
+		kvr.Result = false
+		return kvr
 	}
-	kvi.Result = true
-	return kvi
+	kvr.Result = true
+	return kvr
 }
 
 // KeyCount - Key Number
@@ -267,8 +247,9 @@ func (db *BoltDB) ListKeys(page uint) []string {
 // List - list content that hander returned
 // page - page number
 // boltdb.Count define the records in one page
-func (db *BoltDB) List(page uint, handler func(k, v []byte) *KVInfo) *KVInfo {
-	kv := &KVInfo{
+func (db *BoltDB) List(page uint, handler func(k, v []byte) *KVResult) *KVResult {
+	data := make([]interface{}, 0)
+	kv := &KVResult{
 		Info:   "",
 		Result: true,
 	}
@@ -282,7 +263,7 @@ func (db *BoltDB) List(page uint, handler func(k, v []byte) *KVInfo) *KVInfo {
 		for k, v := c.First(); k != nil && index < (page+1)*db.Count; k, v = c.Next() {
 			if index >= page*db.Count {
 				if i := handler(k, v); i.Result {
-					kv.Data = append(kv.Data, KVData{string(k), v})
+					data = append(data, i.Data)
 					index++
 				}
 			}
@@ -290,21 +271,21 @@ func (db *BoltDB) List(page uint, handler func(k, v []byte) *KVInfo) *KVInfo {
 		return nil
 	})
 	if err == nil {
+		kv.Data = data
 		return kv
 	}
-
-	return &KVInfo{
+	return &KVResult{
 		Info:   err.Error(),
 		Result: false,
 	}
 }
 
 // SetData - set data in object json format
-func (db *BoltDB) SetData(key string, data interface{}) *KVInfo {
+func (db *BoltDB) SetData(key string, data interface{}) *KVResult {
 	var json = jsoniter.ConfigCompatibleWithStandardLibrary
 	value, err := json.Marshal(data)
 	if err != nil {
-		return &KVInfo{
+		return &KVResult{
 			Result: false,
 			Info:   err.Error(),
 		}

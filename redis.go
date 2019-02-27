@@ -101,40 +101,33 @@ func (db *RedisDB) Exists(key string) bool {
 }
 
 // Get - get value from key
-func (db *RedisDB) Get(key string) *KVInfo {
+func (db *RedisDB) Get(key string) *KVResult {
 	data, err := db.Client.HGet(db.HashKey, key).Bytes()
 	if err != nil {
-		return &KVInfo{
+		return &KVResult{
 			Result: false,
 			Info:   err.Error(),
 		}
 	}
-	return &KVInfo{
-		Data: []KVData{
-			{
-				Key:   key,
-				Value: data,
-			},
-		},
+	return &KVResult{
+		Data:   data,
 		Result: true,
 		Info:   "",
 	}
 }
 
 // Set - set key value
-func (db *RedisDB) Set(kv *KVData) *KVInfo {
+func (db *RedisDB) Set(kv *KVData) *KVResult {
 	//	return db.Client.Set(key, data, time.Duration(t)).Err()
 	err := db.Client.HSet(db.HashKey, kv.Key, kv.Value).Err()
 	if err != nil {
-		return &KVInfo{
+		return &KVResult{
 			Result: false,
 			Info:   err.Error(),
 		}
 	}
-	return &KVInfo{
-		Data: []KVData{
-			*kv,
-		},
+	return &KVResult{
+		Data:   kv,
 		Result: true,
 		Info:   "",
 	}
@@ -146,27 +139,22 @@ func (db *RedisDB) Del(key string) error {
 }
 
 // Delete - delete key
-func (db *RedisDB) Delete(key string) *KVInfo {
+func (db *RedisDB) Delete(key string) *KVResult {
 	var err error
-	kvi := &KVInfo{
-		Data: []KVData{
-			{Key: key},
-		},
-	}
-	kvi.Data[0].Value, err = db.Client.HGet(db.HashKey, key).Bytes()
+	kvr := &KVResult{}
+	kvr.Data, err = db.Client.HGet(db.HashKey, key).Bytes()
 	if err != nil {
-		kvi.Info = err.Error()
-		kvi.Result = false
-		return kvi
+		kvr.Info = err.Error()
+		kvr.Result = false
+		return kvr
 	}
 	err = db.Del(key)
 	if err != nil {
-		kvi.Info = err.Error()
-		kvi.Result = false
-
+		kvr.Info = err.Error()
+		kvr.Result = false
 	}
-	kvi.Result = true
-	return kvi
+	kvr.Result = true
+	return kvr
 }
 
 // KeyCount - Key Number
@@ -176,8 +164,7 @@ func (db *RedisDB) KeyCount() int {
 }
 
 // FindOne - find first matched content that hander returned
-func (db *RedisDB) FindOne(handler func(k, v []byte) *KVInfo) *KVInfo {
-	kv := &KVData{}
+func (db *RedisDB) FindOne(handler func(k, v []byte) *KVResult) *KVResult {
 	iter := db.Client.HScan(db.HashKey, 0, "", 10).Iterator()
 	for iter.Next() {
 		k := iter.Val()
@@ -186,18 +173,10 @@ func (db *RedisDB) FindOne(handler func(k, v []byte) *KVInfo) *KVInfo {
 			continue
 		}
 		if i := handler([]byte(k), v); i.Result {
-			kv.Key = string(k)
-			kv.Value = v
-			return &KVInfo{
-				Data: []KVData{
-					*kv,
-				},
-				Result: true,
-				Info:   "",
-			}
+			return i
 		}
 	}
-	return &KVInfo{
+	return &KVResult{
 		Result: false,
 		Info:   "didn't found kvs",
 	}
@@ -223,8 +202,9 @@ func (db *RedisDB) ListKeys(page uint) []string {
 
 // List - list content that hander returned
 // page - page number
-func (db *RedisDB) List(page uint, handler func(k, v []byte) *KVInfo) *KVInfo {
-	kv := &KVInfo{
+func (db *RedisDB) List(page uint, handler func(k, v []byte) *KVResult) *KVResult {
+	data := make([]interface{}, 0)
+	kv := &KVResult{
 		Info:   "",
 		Result: true,
 	}
@@ -238,23 +218,25 @@ func (db *RedisDB) List(page uint, handler func(k, v []byte) *KVInfo) *KVInfo {
 				continue
 			}
 			if i := handler([]byte(k), v); i.Result {
-				kv.Data = append(kv.Data, KVData{k, v})
+				data = append(data, i.Data)
 				index++
 			}
 		}
 		if index >= (page+1)*db.Count {
+			kv.Data = data
 			return kv
 		}
 	}
+	kv.Data = data
 	return kv
 }
 
 // SetData - set data in object json format
-func (db *RedisDB) SetData(key string, data interface{}) *KVInfo {
+func (db *RedisDB) SetData(key string, data interface{}) *KVResult {
 	var json = jsoniter.ConfigCompatibleWithStandardLibrary
 	value, err := json.Marshal(data)
 	if err != nil {
-		return &KVInfo{
+		return &KVResult{
 			Result: false,
 			Info:   err.Error(),
 		}
