@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strconv"
 
@@ -35,6 +36,8 @@ func init() {
 }
 
 // NewBoltDB - new bolt db using uri format description
+// format : bolt://<db file>/<bucket>?[count=]&[path=]
+// example bolt://service.db/service?count=20&path=./base
 func NewBoltDB(uri string) (KVMethods, error) {
 	u, err := url.Parse(uri)
 	if err != nil {
@@ -45,13 +48,14 @@ func NewBoltDB(uri string) (KVMethods, error) {
 	if t == nil {
 		return nil, errors.New("This type of database [" + t.Scheme + "] didn't exist")
 	}
-
+	para := u.Query()
+	path := para.Get("path")
 	bolt := &BoltDB{
 		Type:   t,
-		DBFile: u.Host,
+		DBFile: filepath.Join(path, u.Host),
 		Bucket: filepath.Base(u.Path),
 	}
-	para := u.Query()
+
 	if para.Get("count") != "" {
 		i, _ := strconv.Atoi(para.Get("count"))
 		if i <= 0 {
@@ -66,6 +70,10 @@ func NewBoltDB(uri string) (KVMethods, error) {
 
 func (db *BoltDB) setup() error {
 	var err error
+	err = os.MkdirAll(filepath.Dir(db.DBFile), 0775)
+	if err != nil {
+		return fmt.Errorf("could create dir, %v", err)
+	}
 	db.DB, err = bolt.Open(db.DBFile, 0600, nil)
 	if err != nil {
 		return fmt.Errorf("could not open db, %v", err)

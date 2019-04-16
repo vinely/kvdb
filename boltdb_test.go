@@ -12,7 +12,7 @@ var (
 )
 
 func initBoltDB() error {
-	db, err := NewKVDataBase("bolt://service.db/service?count=20")
+	db, err := NewKVDataBase("bolt://service.db/service?count=20&path=./base")
 	if err != nil {
 		return err
 	}

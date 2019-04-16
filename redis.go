@@ -19,7 +19,7 @@ var (
 	RedisDBDefaultDB = 0
 )
 
-// RedisDB -
+// RedisDB - using Redis Hashkey mode as a key-value database
 type RedisDB struct {
 	KVMethods
 	Type     *KVDBType
@@ -36,6 +36,8 @@ func init() {
 }
 
 // NewRedisDB - new redis db using uri format description
+// format : redis://<redis host address>/<hashkey>?[count=]&[password=]&[dbno=]
+// example redis://localhost:6379/serv?count=20&password=123&dbno=1
 func NewRedisDB(uri string) (KVMethods, error) {
 	u, err := url.Parse(uri)
 	if err != nil {
