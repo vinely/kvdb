@@ -69,7 +69,10 @@ func NewRedisDB(uri string) (KVMethods, error) {
 		redis.DB, _ = strconv.Atoi(para.Get("dbno"))
 	}
 
-	redis.setup()
+	err = redis.setup()
+	if err != nil {
+		return nil, err
+	}
 	return redis, nil
 }
 

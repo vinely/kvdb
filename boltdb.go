@@ -64,7 +64,10 @@ func NewBoltDB(uri string) (KVMethods, error) {
 		bolt.Count = uint(i)
 	}
 
-	bolt.setup()
+	err = bolt.setup()
+	if err != nil {
+		return nil, err
+	}
 	return bolt, nil
 }
 

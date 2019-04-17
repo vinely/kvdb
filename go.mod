@@ -1,6 +1,7 @@
 module github.com/vinely/kvdb
 
 require (
+	github.com/Workiva/go-datastructures v1.0.50
 	github.com/boltdb/bolt v1.3.1
 	github.com/go-redis/redis v6.15.1+incompatible
 	github.com/json-iterator/go v1.1.5
